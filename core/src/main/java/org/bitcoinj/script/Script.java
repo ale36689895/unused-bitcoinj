@@ -1272,6 +1272,30 @@ public class Script {
         if (!ifStack.isEmpty())
             throw new ScriptException("OP_IF/OP_NOTIF without OP_ENDIF");
     }
+    
+    
+	private static boolean IsCompressedOrUncompressedPubKey(byte[] pubKey) {
+		if (pubKey.length < 33) {
+			//  Non-canonical public key: too short
+			return false;
+		}
+		if (pubKey[0] == 0x04) {
+			if (pubKey.length != 65) {
+				//  Non-canonical public key: invalid length for uncompressed key
+				return false;
+			}
+		} else if (pubKey[0] == 0x02 || pubKey[0] == 0x03) {
+			if (pubKey.length != 33) {
+				//  Non-canonical public key: invalid length for compressed key
+				return false;
+			}
+		} else {
+			  //  Non-canonical public key: neither compressed nor uncompressed
+			  return false;
+		}
+		return true;
+	}
+
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
                                         int lastCodeSepLocation, int opcode) throws ScriptException {
@@ -1279,6 +1303,9 @@ public class Script {
             throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) on a stack with size < 2");
         byte[] pubKey = stack.pollLast();
         byte[] sigBytes = stack.pollLast();
+        
+        if (!IsCompressedOrUncompressedPubKey(pubKey))
+        	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key");
 
         byte[] prog = script.getProgram();
         byte[] connectedScript = Arrays.copyOfRange(prog, lastCodeSepLocation, prog.length);
