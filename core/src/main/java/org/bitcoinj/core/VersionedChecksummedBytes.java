@@ -88,4 +88,8 @@ public class VersionedChecksummedBytes implements Serializable {
     public int getVersion() {
         return version;
     }
+    
+    public byte[] getBytes() {
+    	return bytes;
+    }
 }
