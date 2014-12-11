@@ -480,7 +480,7 @@ public class Transaction extends ChildMessage implements Serializable {
     public static final byte SIGHASH_ANYONECANPAY_VALUE = (byte) 0x80;
 
     @Override
-    protected void unCache() {
+    public void unCache() {
         super.unCache();
         hash = null;
     }
