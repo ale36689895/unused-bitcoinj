@@ -480,6 +480,18 @@ public class Script {
         throw new IllegalStateException("Could not find matching key " + key.toString() + " in script " + this);
     }
 
+    public byte[] getSignature() throws ScriptException {
+        if (chunks.size() != 2) {
+            throw new ScriptException("Script not of right size, expecting 2 but got " + chunks.size());
+        }
+        if (chunks.get(0).data.length > 2 && chunks.get(1).data.length > 2) {
+            // If we have two large constants assume the input to a pay-to-address output.
+            return chunks.get(0).data;
+        }else {
+            throw new ScriptException("Script did not match expected form: " + toString());
+        }
+    }
+
     private int findSigInRedeem(byte[] signatureBytes, Sha256Hash hash) {
         checkArgument(chunks.get(0).isOpCode()); // P2SH scriptSig
         int numKeys = Script.decodeFromOpN(chunks.get(chunks.size() - 2).opcode);
