@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.io.Serializable;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -31,7 +32,7 @@ import static org.bitcoinj.script.ScriptOpCodes.*;
 /**
  * An element that is either an opcode or a raw byte array (signature, pubkey, etc).
  */
-public class ScriptChunk {
+public class ScriptChunk implements Serializable {
     public final int opcode;
     @Nullable
     public final byte[] data;

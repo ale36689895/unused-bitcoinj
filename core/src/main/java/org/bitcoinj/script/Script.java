@@ -34,6 +34,7 @@ import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.io.Serializable;
 
 import static org.bitcoinj.script.ScriptOpCodes.*;
 import static com.google.common.base.Preconditions.*;
@@ -49,7 +50,7 @@ import static com.google.common.base.Preconditions.*;
  * clients don't have that data. In full mode, this class is used to run the interpreted language. It also has
  * static methods for building scripts.</p>
  */
-public class Script {
+public class Script implements Serializable {
 
     /** Enumeration to encapsulate the type of this script. */
     public enum ScriptType {
