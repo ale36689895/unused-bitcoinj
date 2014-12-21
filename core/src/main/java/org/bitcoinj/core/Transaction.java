@@ -1082,13 +1082,13 @@ public class Transaction extends ChildMessage implements Serializable {
     /** Returns an unmodifiable view of all inputs. */
     public List<TransactionInput> getInputs() {
         maybeParse();
-        return Collections.unmodifiableList(inputs);
+        return inputs;
     }
 
     /** Returns an unmodifiable view of all outputs. */
     public List<TransactionOutput> getOutputs() {
         maybeParse();
-        return Collections.unmodifiableList(outputs);
+        return outputs;
     }
 
     /**
