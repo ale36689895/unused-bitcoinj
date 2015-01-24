@@ -1275,6 +1275,57 @@ public class Script implements Serializable {
     }
     
     
+    private static boolean IsDERSignature(byte[] vchSig) throws ScriptException {
+        int SIGHASH_ALL = 1;
+        int SIGHASH_NONE = 2;
+        int SIGHASH_SINGLE = 3;
+        int SIGHASH_ANYONECANPAY = 80;
+
+        if (vchSig.length < 9)
+            throw new ScriptException("Non-canonical signature: too short");
+        if (vchSig.length > 73)
+            throw new ScriptException("Non-canonical signature: too long");
+        int nHashType = vchSig[vchSig.length - 1];
+        if (nHashType != SIGHASH_ALL && nHashType != SIGHASH_NONE && nHashType != SIGHASH_SINGLE && nHashType != SIGHASH_ANYONECANPAY)
+            throw new ScriptException("Non-canonical signature: unknown hashtype byte " + nHashType);
+        if (vchSig[0] != 0x30)
+            throw new ScriptException("Non-canonical signature: wrong type");
+        if (vchSig[1] != vchSig.length - 3)
+            throw new ScriptException("Non-canonical signature: wrong length marker");
+        int nLenR = vchSig[3];
+        if (5 + nLenR >= vchSig.length)
+            throw new ScriptException("Non-canonical signature: S length misplaced");
+        int nLenS = vchSig[5 + nLenR];
+        if (nLenR + nLenS + 7 != vchSig.length)
+            throw new ScriptException("Non-canonical signature: R+S length mismatch");
+
+        {
+            int n = 4;
+            if (vchSig[n - 2] != 0x02)
+                throw new ScriptException("Non-canonical signature: R value type mismatch");
+            if (nLenR == 0)
+                throw new ScriptException("Non-canonical signature: R length is zero");
+            if ((vchSig[n + 0] & 0x80) > 0)
+                throw new ScriptException("Non-canonical signature: R value negative");
+            if (nLenR > 1 && (vchSig[n + 0] == 0x00) && (vchSig[n + 1] & 0x80) == 0)
+                throw new ScriptException("Non-canonical signature: R value excessively padded");
+        }
+
+        {
+            int n = 6 + nLenR;
+            if (vchSig[n - 2] != 0x02)
+                throw new ScriptException("Non-canonical signature: S value type mismatch");
+            if (nLenS == 0)
+                throw new ScriptException("Non-canonical signature: S length is zero");
+            if ((vchSig[n + 0] & 0x80) > 0)
+                throw new ScriptException("Non-canonical signature: S value negative");
+            if (nLenS > 1 && (vchSig[n + 0] == 0x00) && (vchSig[n + 1] & 0x80) == 0)
+                throw new ScriptException("Non-canonical signature: S value excessively padded");
+        }
+
+        return true;
+    }
+    
 	private static boolean IsCompressedOrUncompressedPubKey(byte[] pubKey) {
 		if (pubKey.length < 33) {
 			//  Non-canonical public key: too short
@@ -1307,6 +1358,9 @@ public class Script implements Serializable {
         
         if (!IsCompressedOrUncompressedPubKey(pubKey))
         	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key");
+        	
+        if (!IsDERSignature(sigBytes)) 
+            throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
 
         byte[] prog = script.getProgram();
         byte[] connectedScript = Arrays.copyOfRange(prog, lastCodeSepLocation, prog.length);
