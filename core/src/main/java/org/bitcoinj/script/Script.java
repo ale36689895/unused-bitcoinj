@@ -1273,14 +1273,24 @@ public class Script implements Serializable {
         if (!ifStack.isEmpty())
             throw new ScriptException("OP_IF/OP_NOTIF without OP_ENDIF");
     }
-    
-    
-    private static boolean IsDERSignature(byte[] vchSig) throws ScriptException {
-        int SIGHASH_ALL = 1;
-        int SIGHASH_NONE = 2;
-        int SIGHASH_SINGLE = 3;
-        int SIGHASH_ANYONECANPAY = 80;
 
+	private static final int SIGHASH_ALL = 1;
+    private static final int SIGHASH_NONE = 2;
+    private static final int SIGHASH_SINGLE = 3;
+    private static final int SIGHASH_ANYONECANPAY = 80;
+
+    public static boolean IsDefinedHashtypeSignature(byte[] vchSig) {
+        if (vchSig.length == 0) {
+            return false;
+        }
+     	int nHashType = vchSig[vchSig.length - 1] & (~(SIGHASH_ANYONECANPAY));
+        if (nHashType < SIGHASH_ALL || nHashType > SIGHASH_SINGLE)
+            return false;
+
+        return true;
+    }
+    
+    public static boolean IsDERSignature(byte[] vchSig) throws ScriptException {
         if (vchSig.length < 9)
             throw new ScriptException("Non-canonical signature: too short");
         if (vchSig.length > 73)
@@ -1347,6 +1357,8 @@ public class Script implements Serializable {
 		}
 		return true;
 	}
+	
+	
 
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
@@ -1361,6 +1373,9 @@ public class Script implements Serializable {
         	
         if (!IsDERSignature(sigBytes)) 
             throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
+            
+        if (!IsDefinedHashtypeSignature(sigBytes))
+            throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false");
 
         byte[] prog = script.getProgram();
         byte[] connectedScript = Arrays.copyOfRange(prog, lastCodeSepLocation, prog.length);
