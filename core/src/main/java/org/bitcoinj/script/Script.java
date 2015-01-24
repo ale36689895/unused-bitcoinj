@@ -757,6 +757,31 @@ public class Script implements Serializable {
         return chunks.size() == 2 && chunks.get(0).equalsOpCode(OP_RETURN);
     }
 
+
+	public static boolean CheckMinimalPush(byte[] data, int opcode) {
+		if (data.length == 0) {
+			// Could have used OP_0.
+			return opcode == OP_0;
+		} else if (data.length == 1 && data[0] >= 1 && data[0] <= 16) {
+			// Could have used OP_1 .. OP_16.
+			return opcode == OP_1 + (data[0] - 1);
+		} else if (data.length == 1 && data[0] == 0x81) {
+			// Could have used OP_1NEGATE.
+			return opcode == OP_1NEGATE;
+		} else if (data.length <= 75) {
+			// Could have used a direct push (opcode indicating number of bytes pushed + those bytes).
+			return opcode == data.length;
+		} else if (data.length <= 255) {
+			// Could have used OP_PUSHDATA.
+			return opcode == OP_PUSHDATA1;
+		} else if (data.length <= 65535) {
+			// Could have used OP_PUSHDATA2.
+			return opcode == OP_PUSHDATA2;
+		}
+		return true;
+	}
+
+
     /**
      * Exposes the script interpreter. Normally you should not use this directly, instead use
      * {@link org.bitcoinj.core.TransactionInput#verify(org.bitcoinj.core.TransactionOutput)} or
@@ -781,7 +806,10 @@ public class Script implements Serializable {
                 
                 if (!shouldExecute)
                     continue;
-                
+                    
+                if (!CheckMinimalPush(chunk.data, chunk.opcode))
+                    throw new ScriptException("Attempted to push a data string larger than 520 bytes");
+
                 stack.add(chunk.data);
             } else {
                 int opcode = chunk.opcode;
@@ -1358,8 +1386,6 @@ public class Script implements Serializable {
 		return true;
 	}
 	
-	
-
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
                                         int lastCodeSepLocation, int opcode) throws ScriptException {
