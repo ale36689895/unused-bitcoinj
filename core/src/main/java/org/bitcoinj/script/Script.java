@@ -1318,47 +1318,47 @@ public class Script implements Serializable {
         return true;
     }
     
-    public static boolean IsDERSignature(byte[] vchSig) throws ScriptException {
+    public static boolean IsDERSignature(byte[] vchSig) throws BIP66ScriptException {
         if (vchSig.length < 9)
-            throw new ScriptException("Non-canonical signature: too short");
+            throw new BIP66ScriptException("Non-canonical signature: too short");
         if (vchSig.length > 73)
-            throw new ScriptException("Non-canonical signature: too long");
+            throw new BIP66ScriptException("Non-canonical signature: too long");
         int nHashType = vchSig[vchSig.length - 1];
         if (nHashType != SIGHASH_ALL && nHashType != SIGHASH_NONE && nHashType != SIGHASH_SINGLE && nHashType != SIGHASH_ANYONECANPAY)
-            throw new ScriptException("Non-canonical signature: unknown hashtype byte " + nHashType);
+            throw new BIP66ScriptException("Non-canonical signature: unknown hashtype byte " + nHashType);
         if (vchSig[0] != 0x30)
-            throw new ScriptException("Non-canonical signature: wrong type");
+            throw new BIP66ScriptException("Non-canonical signature: wrong type");
         if (vchSig[1] != vchSig.length - 3)
-            throw new ScriptException("Non-canonical signature: wrong length marker");
+            throw new BIP66ScriptException("Non-canonical signature: wrong length marker");
         int nLenR = vchSig[3];
         if (5 + nLenR >= vchSig.length)
-            throw new ScriptException("Non-canonical signature: S length misplaced");
+            throw new BIP66ScriptException("Non-canonical signature: S length misplaced");
         int nLenS = vchSig[5 + nLenR];
         if (nLenR + nLenS + 7 != vchSig.length)
-            throw new ScriptException("Non-canonical signature: R+S length mismatch");
+            throw new BIP66ScriptException("Non-canonical signature: R+S length mismatch");
 
         {
             int n = 4;
             if (vchSig[n - 2] != 0x02)
-                throw new ScriptException("Non-canonical signature: R value type mismatch");
+                throw new BIP66ScriptException("Non-canonical signature: R value type mismatch");
             if (nLenR == 0)
-                throw new ScriptException("Non-canonical signature: R length is zero");
+                throw new BIP66ScriptException("Non-canonical signature: R length is zero");
             if ((vchSig[n + 0] & 0x80) > 0)
-                throw new ScriptException("Non-canonical signature: R value negative");
+                throw new BIP66ScriptException("Non-canonical signature: R value negative");
             if (nLenR > 1 && (vchSig[n + 0] == 0x00) && (vchSig[n + 1] & 0x80) == 0)
-                throw new ScriptException("Non-canonical signature: R value excessively padded");
+                throw new BIP66ScriptException("Non-canonical signature: R value excessively padded");
         }
 
         {
             int n = 6 + nLenR;
             if (vchSig[n - 2] != 0x02)
-                throw new ScriptException("Non-canonical signature: S value type mismatch");
+                throw new BIP66ScriptException("Non-canonical signature: S value type mismatch");
             if (nLenS == 0)
-                throw new ScriptException("Non-canonical signature: S length is zero");
+                throw new BIP66ScriptException("Non-canonical signature: S length is zero");
             if ((vchSig[n + 0] & 0x80) > 0)
-                throw new ScriptException("Non-canonical signature: S value negative");
+                throw new BIP66ScriptException("Non-canonical signature: S value negative");
             if (nLenS > 1 && (vchSig[n + 0] == 0x00) && (vchSig[n + 1] & 0x80) == 0)
-                throw new ScriptException("Non-canonical signature: S value excessively padded");
+                throw new BIP66ScriptException("Non-canonical signature: S value excessively padded");
         }
 
         return true;
@@ -1398,7 +1398,7 @@ public class Script implements Serializable {
         	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key");
         	
         if (!IsDERSignature(sigBytes)) 
-            throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
+            throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
             
         if (!IsDefinedHashtypeSignature(sigBytes))
             throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false");
