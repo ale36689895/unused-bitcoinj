@@ -1323,9 +1323,9 @@ public class Script implements Serializable {
             throw new BIP66ScriptException("Non-canonical signature: too short");
         if (vchSig.length > 73)
             throw new BIP66ScriptException("Non-canonical signature: too long");
-        int nHashType = vchSig[vchSig.length - 1];
+       /* int nHashType = vchSig[vchSig.length - 1];
         if (nHashType != SIGHASH_ALL && nHashType != SIGHASH_NONE && nHashType != SIGHASH_SINGLE && nHashType != SIGHASH_ANYONECANPAY)
-            throw new BIP66ScriptException("Non-canonical signature: unknown hashtype byte " + nHashType);
+            throw new BIP66ScriptException("Non-canonical signature: unknown hashtype byte " + nHashType);*/
         if (vchSig[0] != 0x30)
             throw new BIP66ScriptException("Non-canonical signature: wrong type");
         if (vchSig[1] != vchSig.length - 3)
