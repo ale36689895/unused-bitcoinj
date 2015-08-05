@@ -64,7 +64,10 @@ public class Script implements Serializable {
     /** Flags to pass to {@link Script#correctlySpends(Transaction, long, Script, Set)}. */
     public enum VerifyFlag {
         P2SH, // Enable BIP16-style subscript evaluation.
-        NULLDUMMY // Verify dummy stack item consumed by CHECKMULTISIG is of zero-length.
+        NULLDUMMY, // Verify dummy stack item consumed by CHECKMULTISIG is of zero-length.
+        BIP66, //BIP66 Checks
+        DEFINED_HASH_TYPE, 
+        PUB_KEY_CHECKS //Additional Pub Key Checks
     }
     public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.allOf(VerifyFlag.class);
 
@@ -790,7 +793,7 @@ public class Script implements Serializable {
      * likely to change in future.
      */
     public static void executeScript(@Nullable Transaction txContainingThis, long index,
-                                     Script script, LinkedList<byte[]> stack, boolean enforceNullDummy) throws ScriptException {
+                                     Script script, LinkedList<byte[]> stack, Set<VerifyFlag> verifyFlags) throws ScriptException {
         int opCount = 0;
         int lastCodeSepLocation = 0;
         
@@ -1269,13 +1272,13 @@ public class Script implements Serializable {
                 case OP_CHECKSIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode);
+                    executeCheckSig(txContainingThis, (int) index, script, stack, lastCodeSepLocation, opcode, verifyFlags);
                     break;
                 case OP_CHECKMULTISIG:
                 case OP_CHECKMULTISIGVERIFY:
                     if (txContainingThis == null)
                         throw new IllegalStateException("Script attempted signature check but no tx was provided");
-                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation, opcode, enforceNullDummy);
+                    opCount = executeMultiSig(txContainingThis, (int) index, script, stack, opCount, lastCodeSepLocation, opcode, verifyFlags);
                     break;
                 case OP_NOP1:
                 case OP_NOP2:
@@ -1388,20 +1391,20 @@ public class Script implements Serializable {
 	
 
     private static void executeCheckSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                        int lastCodeSepLocation, int opcode) throws ScriptException {
+                                        int lastCodeSepLocation, int opcode, Set<VerifyFlag> verifyFlags) throws ScriptException {
         if (stack.size() < 2)
             throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) on a stack with size < 2");
         byte[] pubKey = stack.pollLast();
         byte[] sigBytes = stack.pollLast();
         
-        if (!IsCompressedOrUncompressedPubKey(pubKey))
-        	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key");
+        if (verifyFlags.contains(VerifyFlag.PUB_KEY_CHECKS) && !IsCompressedOrUncompressedPubKey(pubKey))
+        	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key (Flags " + verifyFlags + ")");
         	
-        if (!IsDERSignature(sigBytes)) 
-            throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
+        if (verifyFlags.contains(VerifyFlag.BIP66) && !IsDERSignature(sigBytes)) 
+            throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature (Flags " + verifyFlags + ")");
             
-        if (!IsDefinedHashtypeSignature(sigBytes))
-            throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false");
+        if (verifyFlags.contains(VerifyFlag.DEFINED_HASH_TYPE) && !IsDefinedHashtypeSignature(sigBytes))
+            throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false (Flags " + verifyFlags + ")");
 
         byte[] prog = script.getProgram();
         byte[] connectedScript = Arrays.copyOfRange(prog, lastCodeSepLocation, prog.length);
@@ -1438,7 +1441,7 @@ public class Script implements Serializable {
     }
 
     private static int executeMultiSig(Transaction txContainingThis, int index, Script script, LinkedList<byte[]> stack,
-                                       int opCount, int lastCodeSepLocation, int opcode, boolean enforceNullDummy) throws ScriptException {
+                                       int opCount, int lastCodeSepLocation, int opcode, Set<VerifyFlag> verifyFlags) throws ScriptException {
         if (stack.size() < 2)
             throw new ScriptException("Attempted OP_CHECKMULTISIG(VERIFY) on a stack with size < 2");
         int pubKeyCount = castToBigInteger(stack.pollLast()).intValue();
@@ -1453,7 +1456,11 @@ public class Script implements Serializable {
         LinkedList<byte[]> pubkeys = new LinkedList<byte[]>();
         for (int i = 0; i < pubKeyCount; i++) {
             byte[] pubKey = stack.pollLast();
-            pubkeys.add(pubKey);
+            
+         if (verifyFlags.contains(VerifyFlag.PUB_KEY_CHECKS) && !IsCompressedOrUncompressedPubKey(pubKey))
+        	throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) with invalid pub key");
+        		
+        	pubkeys.add(pubKey);
         }
 
         int sigCount = castToBigInteger(stack.pollLast()).intValue();
@@ -1464,8 +1471,15 @@ public class Script implements Serializable {
 
         LinkedList<byte[]> sigs = new LinkedList<byte[]>();
         for (int i = 0; i < sigCount; i++) {
-            byte[] sig = stack.pollLast();
-            sigs.add(sig);
+            byte[] sig = stack.pollLast();            
+            	
+			if (verifyFlags.contains(VerifyFlag.BIP66) && !IsDERSignature(sig)) 
+				throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature");
+			
+			if (verifyFlags.contains(VerifyFlag.DEFINED_HASH_TYPE) && !IsDefinedHashtypeSignature(sig))
+				throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false");
+				
+			sigs.add(sig);
         }
 
         byte[] prog = script.getProgram();
@@ -1504,7 +1518,7 @@ public class Script implements Serializable {
 
         // We uselessly remove a stack object to emulate a reference client bug.
         byte[] nullDummy = stack.pollLast();
-        if (enforceNullDummy && nullDummy.length > 0)
+        if (verifyFlags.contains(VerifyFlag.NULLDUMMY) && nullDummy.length > 0)
             throw new ScriptException("OP_CHECKMULTISIG(VERIFY) with non-null nulldummy: " + Arrays.toString(nullDummy));
 
         if (opcode == OP_CHECKMULTISIG) {
@@ -1553,10 +1567,10 @@ public class Script implements Serializable {
         LinkedList<byte[]> stack = new LinkedList<byte[]>();
         LinkedList<byte[]> p2shStack = null;
         
-        executeScript(txContainingThis, scriptSigIndex, this, stack, verifyFlags.contains(VerifyFlag.NULLDUMMY));
+        executeScript(txContainingThis, scriptSigIndex, this, stack, verifyFlags);
         if (verifyFlags.contains(VerifyFlag.P2SH))
             p2shStack = new LinkedList<byte[]>(stack);
-        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, verifyFlags.contains(VerifyFlag.NULLDUMMY));
+        executeScript(txContainingThis, scriptSigIndex, scriptPubKey, stack, verifyFlags);
         
         if (stack.size() == 0)
             throw new ScriptException("Stack empty at end of script execution.");
@@ -1585,7 +1599,7 @@ public class Script implements Serializable {
             byte[] scriptPubKeyBytes = p2shStack.pollLast();
             Script scriptPubKeyP2SH = new Script(scriptPubKeyBytes);
             
-            executeScript(txContainingThis, scriptSigIndex, scriptPubKeyP2SH, p2shStack, verifyFlags.contains(VerifyFlag.NULLDUMMY));
+            executeScript(txContainingThis, scriptSigIndex, scriptPubKeyP2SH, p2shStack, verifyFlags);
             
             if (p2shStack.size() == 0)
                 throw new ScriptException("P2SH stack empty at end of script execution.");
