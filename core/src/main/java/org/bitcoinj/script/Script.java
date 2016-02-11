@@ -67,6 +67,7 @@ public class Script implements Serializable {
         NULLDUMMY, // Verify dummy stack item consumed by CHECKMULTISIG is of zero-length.
         BIP66, //BIP66 Checks
         DEFINED_HASH_TYPE, 
+        LOW_S, //Low S Sig Check
         PUB_KEY_CHECKS //Additional Pub Key Checks
     }
     public static final EnumSet<VerifyFlag> ALL_VERIFY_FLAGS = EnumSet.allOf(VerifyFlag.class);
@@ -1321,6 +1322,24 @@ public class Script implements Serializable {
         return true;
     }
     
+    public static boolean CheckLowS(byte[] vchSig) throws BIP66ScriptException {
+        int nLenR = vchSig[3];
+        int nLenS = vchSig[5 + nLenR];
+
+		int n = 6 + nLenR;
+
+		byte[] S = new byte[nLenS];
+	
+		System.arraycopy(vchSig, n, S, 0, nLenS);
+	
+		final BigInteger SInt = new BigInteger(S);
+		
+		if (SInt.compareTo(ECKey.HALF_CURVE_ORDER) > 0) 
+			throw new BIP66ScriptException("Non-canonical signature: High S Value");
+						
+		return true;
+	}
+    
     public static boolean IsDERSignature(byte[] vchSig) throws BIP66ScriptException {
         if (vchSig.length < 9)
             throw new BIP66ScriptException("Non-canonical signature: too short");
@@ -1403,6 +1422,9 @@ public class Script implements Serializable {
         if (verifyFlags.contains(VerifyFlag.BIP66) && !IsDERSignature(sigBytes)) 
             throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with Non-canonical signature (Flags " + verifyFlags + ")");
             
+        if (verifyFlags.contains(VerifyFlag.LOW_S) && !CheckLowS(sigBytes)) 
+            throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with high S (Flags " + verifyFlags + ")");
+            
         if (verifyFlags.contains(VerifyFlag.DEFINED_HASH_TYPE) && !IsDefinedHashtypeSignature(sigBytes))
             throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false (Flags " + verifyFlags + ")");
 
@@ -1479,6 +1501,9 @@ public class Script implements Serializable {
 			if (verifyFlags.contains(VerifyFlag.DEFINED_HASH_TYPE) && !IsDefinedHashtypeSignature(sig))
 				throw new ScriptException("Attempted OP_CHECKSIG(VERIFY) IsDefinedHashtypeSignature returned false");
 				
+        	if (verifyFlags.contains(VerifyFlag.LOW_S) && !CheckLowS(sig)) 
+            	throw new BIP66ScriptException("Attempted OP_CHECKSIG(VERIFY) with high S (Flags " + verifyFlags + ")");
+            	
 			sigs.add(sig);
         }
 
